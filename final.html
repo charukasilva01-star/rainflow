@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RainFlow Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel-stylesheet">
+    <style>
+        :root {
+            --primary-blue: #0A74DA;
+            --secondary-light: #B4E8FF;
+            --background-dark: #1F2937;
+            --clean-blue: #3B82F6;
+            --danger-red: #EF4444;
+            --score-gold: #FFD700;
+            --logo-glow: #00FFFF; /* Bright cyan from the logo */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b111a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #gameContainer {
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border-radius: 1rem;
+            overflow: hidden;
+            background-color: var(--background-dark);
+            border: 4px solid var(--primary-blue);
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(180deg, #1E3A8A 0%, #0F172A 100%); 
+            touch-action: none;
+            cursor: pointer;
+        }
+
+        .btn-game {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px var(--primary-blue);
+            background-color: var(--primary-blue);
+        }
+
+        .btn-game:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px var(--primary-blue);
+            background-color: #0d82fa;
+        }
+
+        .btn-game:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px var(--primary-blue);
+        }
+
+        #wetnessBar {
+            height: 100%;
+            border-radius: 9999px;
+            background-color: var(--clean-blue); 
+            transition: width 0.1s linear, background-color 0.3s ease;
+        }
+
+        .logo-img {
+            /* Ensure the logo section is vertically centered and responsive */
+            width: 80px;
+            height: 80px;
+            box-shadow: 0 0 15px var(--logo-glow);
+            border-radius: 50%;
+            border: 2px solid var(--logo-glow);
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer" class="flex flex-col relative">
+    
+    <!-- Header with Logo and Title -->
+    <header class="p-4 bg-gray-800 border-b-2 border-gray-700 flex items-center justify-center space-x-4">
+        <!-- Logo Image Placeholder (Replace src with your actual hosted image URL) -->
+        <!-- Note: Using the provided image file's ID here for demonstration -->
+        <img src="https://placehold.co/80x80/000/00FFFF?text=R" 
+             onerror="this.src='https://placehold.co/80x80/000/00FFFF?text=R'" 
+             alt="RainFlow Logo" 
+             class="logo-img">
+        <h1 class="text-3xl font-extrabold text-white tracking-wider">
+            <span class="text-secondary-light">RainFlow</span> Game
+        </h1>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="p-4 flex flex-col sm:flex-row justify-between items-center bg-gray-700">
+        <div class="text-lg font-bold mb-2 sm:mb-0">Score: <span id="scoreDisplay" class="text-score-gold">0</span></div>
+        
+        <!-- Wetness Bar (Health) -->
+        <div class="flex items-center space-x-2 w-full sm:w-1/2">
+            <span class="font-bold whitespace-nowrap">Wetness:</span>
+            <div class="flex-grow h-6 bg-gray-800 rounded-full border border-gray-500 overflow-hidden">
+                <div id="wetnessBar" style="width: 0%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <!-- Controls and Messages -->
+    <div class="p-4 bg-gray-800 flex flex-col items-center space-y-3">
+        <div id="messageBox" class="text-xl font-bold text-center h-8">
+            <span id="gameStatus" class="text-secondary-light">Click Start!</span>
+        </div>
+        <button id="startButton" class="btn-game text-white font-bold py-3 px-8 rounded-xl w-full sm:w-auto text-lg">
+            Start Dash
+        </button>
+        <div class="text-xs text-gray-500 mt-2 text-center">
+            Use A/D or Left/Right arrows, or tap left/right screen for movement.
+        </div>
+    </div>
+
+    <!-- Promotional Call to Action -->
+    <footer class="p-6 bg-gray-900 text-center">
+        <p class="text-md font-semibold text-secondary-light">
+            Need Permanent RainFlow Protection?
+        </p>
+        <p class="text-sm text-gray-400 mt-1">
+            Grab a RainFlow Jacket and Bag to stay dry, no power-up needed!
+        </p>
+        <a href="#" class="inline-block mt-3 px-4 py-2 text-sm font-bold bg-primary-blue text-white rounded-lg hover:bg-blue-600 transition">
+            Shop RainFlow Gear
+        </a>
+    </footer>
+</div>
+
+<script>
+    // --- GAME CONSTANTS AND VARIABLES ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startButton = document.getElementById('startButton');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const wetnessBar = document.getElementById('wetnessBar');
+    const gameStatus = document.getElementById('gameStatus');
+
+    let isGameRunning = false;
+    let score = 0;
+    let wetness = 0; 
+    const MAX_WETNESS = 100;
+
+    let enemies = [];
+    let powerUps = [];
+    let particles = [];
+
+    // SMOOTH MOVEMENT VARIABLES
+    const BASE_PLAYER_SPEED = 7; // Slightly increased base speed
+    const SMOOTHING_FACTOR = 0.15; // Controls how quickly the player reaches target speed/position
+    let targetX = 0; // The desired horizontal position
+    let keys = {}; 
+    let dx = 0; // Current velocity multiplier (-1, 0, 1)
+
+    // Jacket Power-up State
+    let isInvincible = false;
+    const INVINCIBILITY_DURATION = 5000;
+    let invincibilityTimer = 0;
+    
+    // Spawning Control
+    let spawnRate = 600; 
+    let lastSpawnTime = 0;
+    let difficultyTimer = 0;
+    const DIFFICULTY_INCREASE_RATE = 750;
+
+
+    // --- OBJECT DEFINITIONS ---
+
+    const Player = {
+        x: 0,
+        y: 0,
+        radius: 15,
+        emoji: '🧍',
+        frame: 0,
+        runEmojis: ['🏃', '🚶', '🏃'],
+        
+        update: function() {
+            // Determine the target X position based on key input (dx)
+            if (dx !== 0) {
+                // If moving, set the target to the canvas boundary in that direction
+                targetX = (dx > 0) 
+                    ? canvas.width - this.radius 
+                    : this.radius;
+            } else {
+                // If stopped, the current position becomes the target to smooth out stopping
+                targetX = this.x;
+            }
+            
+            // Apply Linear Interpolation (Lerp) for smooth movement
+            // This moves the player toward targetX at a smoothed rate
+            this.x += (targetX - this.x) * SMOOTHING_FACTOR * BASE_PLAYER_SPEED / 6;
+
+            // Keep player strictly within canvas bounds (safety clamp)
+            this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+            
+            // Simple Animation cycle
+            if (dx !== 0 && isGameRunning) {
+                this.frame++;
+                if (this.frame > 10) {
+                    this.frame = 0;
+                    const currentIndex = this.runEmojis.indexOf(this.emoji);
+                    this.emoji = this.runEmojis[(currentIndex + 1) % this.runEmojis.length];
+                }
+            } else if (dx === 0 && this.emoji !== '🧍' && !isInvincible) {
+                 this.emoji = '🧍'; 
+                 this.frame = 0;
+            }
+        },
+        draw: function() {
+            let currentEmoji = this.emoji;
+            let currentSize = 30;
+
+            if (isInvincible) {
+                currentEmoji = '🧥'; 
+                currentSize = 40;
+                
+                const pulse = Math.sin(Date.now() / 150) * 5 + 5;
+                ctx.shadowColor = 'var(--secondary-light)';
+                ctx.shadowBlur = pulse;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.font = `${currentSize}px Inter`;
+            ctx.textAlign = 'center';
+            ctx.fillText(currentEmoji, this.x, this.y);
+            
+            ctx.shadowBlur = 0;
+        }
+    };
+
+    function Raindrop(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = Math.random() * 10 + 10;
+        this.speed = Math.random() * 4 + 3;
+        this.damage = Math.round(this.radius / 1);
+        if (this.damage < 5) this.damage = 5;
+        if (this.damage > 15) this.damage = 15;
+
+        this.update = function() {
+            this.y += this.speed;
+        };
+
+        this.draw = function() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(17, 85, 255, 0.8)';
+            ctx.shadowColor = 'rgba(17, 85, 255, 0.5)';
+            ctx.shadowBlur = 10;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.font = '10px Inter';
+            ctx.fillStyle = 'white';
+            ctx.fillText('💧', this.x, this.y + 4);
+        };
+    }
+    
+    function Jacket(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 20;
+        this.speed = 1.5;
+        this.emoji = '🧥';
+
+        this.update = function() {
+            this.y += this.speed;
+        };
+
+        this.draw = function() {
+            ctx.font = '40px Inter';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'var(--score-gold)';
+            ctx.shadowBlur = 15;
+            ctx.fillText(this.emoji, this.x, this.y);
+            ctx.shadowBlur = 0;
+        };
+    }
+
+    function SplashParticle(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 5;
+        this.vy = (Math.random() * -3) - 1;
+        this.life = 30;
+        this.radius = Math.random() * 3 + 1;
+        this.color = color || 'var(--secondary-light)';
+
+        this.update = function() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life--;
+        };
+
+        this.draw = function() {
+            ctx.globalAlpha = this.life / 30;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    // --- GAME MECHANICS ---
+
+    function checkCollision(objA, objB) {
+        const dist = Math.hypot(objA.x - objB.x, objA.y - objB.y);
+        return dist < objA.radius + objB.radius;
+    }
+
+    function resetGame() {
+        score = 0;
+        wetness = 0;
+        isInvincible = false;
+        invincibilityTimer = 0;
+        enemies = [];
+        powerUps = [];
+        particles = [];
+        spawnRate = 600;
+        lastSpawnTime = 0;
+        difficultyTimer = 0;
+        dx = 0;
+        
+        Player.x = canvas.width / 2;
+        Player.y = canvas.height - Player.radius - 10;
+        
+        updateScoreDisplay();
+        updateWetnessBar();
+        gameStatus.textContent = 'Dodge the Downpour!';
+    }
+
+    function startGame() {
+        if (isGameRunning) {
+            resetGame();
+        } else {
+            resetGame();
+        }
+        isGameRunning = true;
+        startButton.textContent = 'Dashing...';
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+        isGameRunning = false;
+        startButton.textContent = 'Try Again';
+        gameStatus.textContent = `SATURATED! Final Score: ${score}`;
+        
+        const message = `💧 You reached 100% Wetness! \nYour Final Score: ${score}. \nIf only you had a permanent RainFlow Jacket!`;
+        showModal(message, 'Game Over');
+    }
+
+    // --- UI UPDATES ---
+
+    function updateScoreDisplay() {
+        scoreDisplay.textContent = score;
+    }
+
+    function updateWetnessBar() {
+        wetness = Math.max(0, Math.min(MAX_WETNESS, wetness));
+        const widthPercent = (wetness / MAX_WETNESS) * 100;
+        wetnessBar.style.width = widthPercent + '%';
+
+        if (wetness < 25) {
+            wetnessBar.style.backgroundColor = 'var(--clean-blue)'; 
+        } else if (wetness < 75) {
+            wetnessBar.style.backgroundColor = '#FBBF24';
+        } else {
+            wetnessBar.style.backgroundColor = 'var(--danger-red)';
+            if (isGameRunning && !isInvincible) {
+                 gameStatus.textContent = 'CRITICALLY WET!';
+            }
+        }
+    }
+    
+    // --- SPANWNING LOGIC (Integrated into Game Loop) ---
+    
+    function spawnItems(currentTime) {
+        if (currentTime - lastSpawnTime > spawnRate) {
+            
+            const spawnRaindropChance = 0.9;
+            
+            if (Math.random() < spawnRaindropChance || powerUps.length > 0) {
+                 // Spawn Raindrop
+                const x = Math.random() * (canvas.width - 40) + 20;
+                enemies.push(new Raindrop(x, -30));
+            } else {
+                // Spawn Jacket Power-up
+                const x = Math.random() * (canvas.width - 40) + 20;
+                powerUps.push(new Jacket(x, -30));
+            }
+
+            lastSpawnTime = currentTime;
+        }
+
+        if (currentTime - difficultyTimer > DIFFICULTY_INCREASE_RATE) {
+            spawnRate = Math.max(100, spawnRate - 10);
+            difficultyTimer = currentTime;
+        }
+    }
+
+    // --- UPDATE/COLLISION LOGIC ---
+
+    function updatePhysics(deltaTime) {
+        
+        Player.update();
+        score++; 
+
+        // Handle invincibility timer
+        if (invincibilityTimer > 0) {
+            invincibilityTimer -= deltaTime; 
+            if (invincibilityTimer <= 0) {
+                isInvincible = false;
+                invincibilityTimer = 0;
+                gameStatus.textContent = 'Shield Depleted! Watch out!';
+            } else if (isGameRunning) {
+                 gameStatus.textContent = `Jacket Shield: ${(invincibilityTimer / 1000).toFixed(1)}s`;
+            }
+        }
+
+        // 1. Update and check raindrops (enemies)
+        enemies = enemies.filter(r => {
+            r.update();
+            
+            if (checkCollision(Player, r)) {
+                if (!isInvincible) {
+                    wetness += r.damage;
+                    updateWetnessBar();
+                } else {
+                    for(let i=0; i<30; i++) {
+                         particles.push(new SplashParticle(r.x, r.y, '#9CA3AF'));
+                    }
+                }
+                return false;
+            }
+            return r.y < canvas.height + 50;
+        });
+
+        // 2. Update and check power-ups (jackets)
+        powerUps = powerUps.filter(j => {
+            j.update();
+
+            if (checkCollision(Player, j)) {
+                isInvincible = true;
+                invincibilityTimer = INVINCIBILITY_DURATION;
+                updateWetnessBar(); 
+                gameStatus.textContent = 'RainFlow Jacket Activated! ✨';
+                
+                for(let i=0; i<20; i++) {
+                     particles.push(new SplashParticle(j.x, j.y, 'var(--score-gold)'));
+                }
+                return false;
+            }
+            return j.y < canvas.height + 50;
+        });
+        
+        // 3. Update particles (splashes)
+        particles.forEach(p => p.update());
+        particles = particles.filter(p => p.life > 0);
+        
+        if (wetness >= MAX_WETNESS) {
+            endGame();
+        }
+        updateScoreDisplay();
+    }
+    
+    // --- DRAWING FUNCTIONS ---
+    
+    function drawGround() {
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+        
+        ctx.fillStyle = 'rgba(17, 85, 255, 0.4)';
+        ctx.fillRect(0, canvas.height - 20, canvas.width, 5);
+    }
+    
+    function drawItems() {
+        enemies.forEach(r => r.draw());
+        powerUps.forEach(j => j.draw());
+        
+        particles.forEach(p => p.draw());
+    }
+
+    // --- GAME LOOP ---
+    
+    let lastFrameTime = performance.now();
+
+    function gameLoop(currentTime) {
+        if (!isGameRunning) return;
+        
+        const deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+
+        clearCanvas();
+        
+        spawnItems(currentTime);
+        updatePhysics(deltaTime);
+        
+        drawGround();
+        drawItems();
+        Player.draw();
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+
+    // --- INPUT HANDLERS ---
+
+    function handleKeyDown(e) {
+        keys[e.key] = true;
+        updateMovement();
+    }
+
+    function handleKeyUp(e) {
+        keys[e.key] = false;
+        updateMovement();
+    }
+    
+    function handleTouchStart(e) {
+        if (!isGameRunning) {
+            startGame();
+            return;
+        }
+        e.preventDefault();
+        
+        const touchX = e.touches[0].clientX;
+        const rect = canvas.getBoundingClientRect();
+        
+        const canvasX = touchX - rect.left;
+        if (canvasX < canvas.width / 2) {
+            dx = -1;
+        } else {
+            dx = 1;
+        }
+    }
+    
+    function handleTouchEnd(e) {
+        e.preventDefault();
+        dx = 0;
+    }
+
+    function updateMovement() {
+        dx = 0;
+        if (keys['ArrowLeft'] || keys['a']) {
+            dx = -1;
+        } else if (keys['ArrowRight'] || keys['d']) {
+            dx = 1;
+        }
+    }
+    
+    // --- MODAL/MESSAGE BOX FUNCTION (Reused) ---
+
+    function showModal(message, title) {
+        let modal = document.getElementById('customModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'customModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none';
+            modal.innerHTML = `
+                <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-sm transform scale-95 transition-transform duration-300">
+                    <h3 class="text-2xl font-bold mb-4 text-secondary-light" id="modalTitle"></h3>
+                    <p class="text-white mb-6" id="modalMessage"></p>
+                    <div class="flex justify-end">
+                        <button id="modalClose" class="px-6 py-2 bg-primary-blue text-white font-semibold rounded-lg hover:bg-blue-600 transition">
+                            Got It
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('modalClose').addEventListener('click', () => {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                document.querySelector('#customModal > div').classList.remove('scale-100');
+                document.querySelector('#customModal > div').classList.add('scale-95');
+            });
+        }
+
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalMessage').innerHTML = message.replace(/\n/g, '<br>'); 
+        
+        setTimeout(() => {
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            document.querySelector('#customModal > div').classList.remove('scale-95');
+            document.querySelector('#customModal > div').classList.add('scale-100');
+        }, 50);
+    }
+
+    // --- INITIALIZATION ---
+
+    function setupCanvas() {
+        const container = document.getElementById('gameContainer');
+        canvas.width = container.clientWidth;
+        // Use a 4:3 aspect ratio
+        canvas.height = canvas.width * (3 / 4); 
+        
+        Player.x = canvas.width / 2;
+        Player.y = canvas.height - Player.radius - 10;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGround();
+        Player.draw();
+        
+        resetGame();
+    }
+
+    window.onload = function() {
+        setupCanvas();
+        
+        window.addEventListener('resize', setupCanvas);
+        startButton.addEventListener('click', startGame);
+        
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keyup', handleKeyUp);
+
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    };
+
+</script>
+</body>
+</html>
